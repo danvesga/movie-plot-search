@@ -3,13 +3,6 @@ import { searchMovies, getRecommendations } from './api';
 import GenreDropdown from './GenreDropdown';
 import '../App.css'
 
-const GENRES = [
-  'Animation', 'Action', 'Adventure', 'Comedy', 'Crime', 
-  'Drama', 'Family', 'Fantasy', 'History', 'Horror', 
-  'Music', 'Mystery', 'Romance', 'Science Fiction', 
-  'Thriller', 'War', 'Western'
-];
-
 function MovieSearch() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -17,12 +10,11 @@ function MovieSearch() {
   const [selectedGenres, setSelectedGenres] = useState([]);
   const [error, setError] = useState('');
 
-  const handleGenreToggle = (genre) => {
-    setSelectedGenres(prev => 
-      prev.includes(genre) 
-        ? prev.filter(g => g !== genre)
-        : [...prev, genre]
-    );
+  const getTMDBImageUrl = (posterPath, size = 'w185') => {
+    if (!posterPath) return null;
+    const baseUrl = 'https://image.tmdb.org/t/p/';
+    // Available sizes: w92, w154, w185, w342, w500, w780, original
+    return `${baseUrl}${size}${posterPath}`;
   };
 
   const handleSearch = async (e) => {
@@ -49,11 +41,11 @@ function MovieSearch() {
     setLoading(true);
     setError('');
     try {
-      const recommendations = await getRecommendations(movieId);
+      const recommendations = await getRecommendations(movieId, 10, selectedGenres);
       setResults(recommendations);
       
       if (recommendations.length === 0) {
-        setError('No recommendations found for this movie.');
+        setError('No recommendations found for this movie with the current filters.');
       }
     } catch (error) {
       setError('Failed to get recommendations. Please try again.');
@@ -107,13 +99,24 @@ function MovieSearch() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {results.map((movie) => (
-          <div key={movie.id} className="border rounded p-4 shadow">
+          <div key={movie.id} className="border rounded p-4 shadow p-8">
+            {movie.poster_path && (
+              <img 
+                src={getTMDBImageUrl(movie.poster_path)} 
+                alt={`${movie.title} poster`}
+                className="w-full h-64 object-cover rounded mb-3"
+                onError={(e) => {
+                  e.target.style.display = 'none'; // Hide if image fails to load
+                }}
+              />
+            )}
+            
             <h3 className="font-bold text-lg mb-2">{movie.title}</h3>
             <p className="text-sm text-gray-600 mb-2">{movie.release_date}</p>
             <p className="text-sm mb-3 line-clamp-3">{movie.overview}</p>
             <p className="text-xs text-gray-500 mb-2">Genres: {movie.genres}</p>
             <div className="mb-3">
-              <p className="text-xs text-gray-500 mb-1">Confidence Score:</p>
+              <p className="text-xs text-gray-500 mb-1">Confidence Score: </p>
               <div className="flex items-center gap-2">
                 <div className="flex-1 bg-gray-200 rounded-full h-2">
                   <div 
@@ -124,12 +127,12 @@ function MovieSearch() {
                 <span className="text-sm font-semibold">{(movie.score * 100).toFixed(1)}%</span>
               </div>
             </div>
-            <button
+            {/* <button
               onClick={() => handleRecommend(movie.id)}
               className="px-4 py-2 bg-green-500 text-white rounded text-sm hover:bg-green-600"
             >
               Similar Movies
-            </button>
+            </button> */}
           </div>
         ))}
       </div>

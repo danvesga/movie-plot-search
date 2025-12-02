@@ -26,7 +26,7 @@ export const searchMovies = async (query, topK = 10, genres = []) => {
   }
 };
 
-export const getRecommendations = async (movieId, topK = 10) => {
+export const getRecommendations = async (movieId, topK = 10, genres = []) => {
   try {
     const response = await fetch(`${API_BASE_URL}/recommend`, {
       method: 'POST',
@@ -35,7 +35,8 @@ export const getRecommendations = async (movieId, topK = 10) => {
       },
       body: JSON.stringify({
         movie_id: movieId,
-        top_k: topK
+        top_k: topK,
+        genres: genres
       })
     });
 

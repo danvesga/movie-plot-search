@@ -68,35 +68,33 @@ def search_movies(request: SearchRequest):
     Search for movies based on plot description with optional genre filtering.
     """
     try:
-        # Generate embedding for the search query
         query_embedding = model.encode(request.query).tolist()
         
-        # Build filter for genre if provided
-        filter_dict = None
-        if request.genres and len(request.genres) > 0:
-            # Filter will match if any of the selected genres appear in the movie's genres
-            filter_dict = {
-                "$or": [
-                    {"genres": {"$regex": f".*{genre}.*"}} for genre in request.genres
-                ]
-            }
+        # Get more results if filtering is needed (no Pinecone filter, just fetch more)
+        fetch_count = request.top_k * 5 if request.genres else request.top_k
         
-        # Query Pinecone
         results = index.query(
             vector=query_embedding,
-            top_k=request.top_k * 3 if filter_dict else request.top_k,  # Get more results when filtering
-            include_metadata=True,
-            filter=filter_dict
+            top_k=min(fetch_count, 100),
+            include_metadata=True
         )
         
-        # Format results and filter by genre
+        # Filter by genre in post-processing
         movies = []
         for match in results['matches']:
-            # Double-check genre matching
+            movie_genres = match['metadata'].get('genres', '').lower()
+            
+            # If genres filter is applied, check if movie matches
             if request.genres and len(request.genres) > 0:
-                movie_genres = match['metadata'].get('genres', '')
-                # Check if any selected genre is in the movie's genres
-                if not any(genre in movie_genres for genre in request.genres):
+                # Check if any of the selected genres appear in the movie's genres
+                genre_match = False
+                for genre in request.genres:
+                    # Case-insensitive matching
+                    if genre.lower() in movie_genres:
+                        genre_match = True
+                        break
+                
+                if not genre_match:
                     continue
             
             movies.append(Movie(
