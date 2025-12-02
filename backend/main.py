@@ -34,6 +34,7 @@ index = pc.Index('movie-plots')
 class SearchRequest(BaseModel):
     query: str
     top_k: Optional[int] = 10
+    genres: Optional[List[str]] = None
 
 class Movie(BaseModel):
     id: str
@@ -54,6 +55,7 @@ class SearchResponse(BaseModel):
 class RecommendRequest(BaseModel):
     movie_id: str
     top_k: Optional[int] = 10
+    genres: Optional[List[str]] = None
 
 # Endpoints
 @app.get("/")
@@ -63,22 +65,40 @@ def read_root():
 @app.post("/search", response_model=SearchResponse)
 def search_movies(request: SearchRequest):
     """
-    Search for movies based on plot description.
+    Search for movies based on plot description with optional genre filtering.
     """
     try:
         # Generate embedding for the search query
         query_embedding = model.encode(request.query).tolist()
         
+        # Build filter for genre if provided
+        filter_dict = None
+        if request.genres and len(request.genres) > 0:
+            # Filter will match if any of the selected genres appear in the movie's genres
+            filter_dict = {
+                "$or": [
+                    {"genres": {"$regex": f".*{genre}.*"}} for genre in request.genres
+                ]
+            }
+        
         # Query Pinecone
         results = index.query(
             vector=query_embedding,
-            top_k=request.top_k,
-            include_metadata=True
+            top_k=request.top_k * 3 if filter_dict else request.top_k,  # Get more results when filtering
+            include_metadata=True,
+            filter=filter_dict
         )
         
-        # Format results
+        # Format results and filter by genre
         movies = []
         for match in results['matches']:
+            # Double-check genre matching
+            if request.genres and len(request.genres) > 0:
+                movie_genres = match['metadata'].get('genres', '')
+                # Check if any selected genre is in the movie's genres
+                if not any(genre in movie_genres for genre in request.genres):
+                    continue
+            
             movies.append(Movie(
                 id=match['id'],
                 title=match['metadata'].get('title', ''),
@@ -91,6 +111,10 @@ def search_movies(request: SearchRequest):
                 credits=match['metadata'].get('credits', ''),
                 score=match['score']
             ))
+            
+            # Stop when we have enough results
+            if len(movies) >= request.top_k:
+                break
         
         return SearchResponse(results=movies, query=request.query)
     
@@ -100,45 +124,64 @@ def search_movies(request: SearchRequest):
 @app.post("/recommend", response_model=SearchResponse)
 def recommend_movies(request: RecommendRequest):
     """
-    Get movie recommendations based on a specific movie.
+    Get movie recommendations based on a specific movie with optional genre filtering.
     """
     try:
         # Fetch the movie's vector from Pinecone
         movie_data = index.fetch(ids=[request.movie_id])
         
-        if not movie_data['vectors']:
+        if not movie_data['vectors'] or request.movie_id not in movie_data['vectors']:
             raise HTTPException(status_code=404, detail="Movie not found")
         
-        # Get the movie's embedding
         movie_vector = movie_data['vectors'][request.movie_id]['values']
+        
+        fetch_count = (request.top_k + 1) * 5 if request.genres else request.top_k + 1
         
         # Query for similar movies
         results = index.query(
             vector=movie_vector,
-            top_k=request.top_k + 1,  # +1 because the movie itself will be in results
+            top_k=min(fetch_count, 100),
             include_metadata=True
         )
         
-        # Format results (exclude the original movie)
+        # Format results and apply genre filter
         movies = []
         for match in results['matches']:
-            if match['id'] != request.movie_id:  # Skip the original movie
-                movies.append(Movie(
-                    id=match['id'],
-                    title=match['metadata'].get('title', ''),
-                    overview=match['metadata'].get('overview', ''),
-                    genres=match['metadata'].get('genres', ''),
-                    release_date=match['metadata'].get('release_date', ''),
-                    popularity=match['metadata'].get('popularity', 0),
-                    poster_path=match['metadata'].get('poster_path', ''),
-                    production_companies=match['metadata'].get('production_companies', ''),
-                    credits=match['metadata'].get('credits', ''),
-                    score=match['score']
-                ))
+            if match['id'] == request.movie_id:
+                continue
+            
+            movie_genres = match['metadata'].get('genres', '').lower()
+            
+            if request.genres and len(request.genres) > 0:
+                genre_match = False
+                for genre in request.genres:
+                    if genre.lower() in movie_genres:
+                        genre_match = True
+                        break
+                
+                if not genre_match:
+                    continue
+            
+            movies.append(Movie(
+                id=match['id'],
+                title=match['metadata'].get('title', ''),
+                overview=match['metadata'].get('overview', ''),
+                genres=match['metadata'].get('genres', ''),
+                release_date=match['metadata'].get('release_date', ''),
+                popularity=match['metadata'].get('popularity', 0),
+                poster_path=match['metadata'].get('poster_path', ''),
+                production_companies=match['metadata'].get('production_companies', ''),
+                credits=match['metadata'].get('credits', ''),
+                score=match['score']
+            ))
+            
+            if len(movies) >= request.top_k:
+                break
         
+        original_title = movie_data['vectors'][request.movie_id]['metadata'].get('title', 'Unknown')
         return SearchResponse(
-            results=movies[:request.top_k], 
-            query=f"Similar to: {movie_data['vectors'][request.movie_id]['metadata'].get('title', '')}"
+            results=movies, 
+            query=f"Similar to: {original_title}"
         )
     
     except HTTPException:

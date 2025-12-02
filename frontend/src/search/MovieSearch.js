@@ -1,21 +1,45 @@
 import React, { useState } from 'react';
 import { searchMovies, getRecommendations } from './api';
+import GenreDropdown from './GenreDropdown';
+import '../App.css'
 
-export default function MovieSearch() {
+const GENRES = [
+  'Animation', 'Action', 'Adventure', 'Comedy', 'Crime', 
+  'Drama', 'Family', 'Fantasy', 'History', 'Horror', 
+  'Music', 'Mystery', 'Romance', 'Science Fiction', 
+  'Thriller', 'War', 'Western'
+];
+
+function MovieSearch() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [selectedGenres, setSelectedGenres] = useState([]);
+  const [error, setError] = useState('');
+
+  const handleGenreToggle = (genre) => {
+    setSelectedGenres(prev => 
+      prev.includes(genre) 
+        ? prev.filter(g => g !== genre)
+        : [...prev, genre]
+    );
+  };
 
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!query.trim()) return;
 
     setLoading(true);
+    setError('');
     try {
-      const movies = await searchMovies(query);
+      const movies = await searchMovies(query, 10, selectedGenres);
       setResults(movies);
+      
+      if (movies.length === 0) {
+        setError('No movies found matching your search and filters. Try adjusting your filters or search query.');
+      }
     } catch (error) {
-      alert('Search failed. Please try again.');
+      setError('Search failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -23,45 +47,70 @@ export default function MovieSearch() {
 
   const handleRecommend = async (movieId) => {
     setLoading(true);
+    setError('');
     try {
       const recommendations = await getRecommendations(movieId);
       setResults(recommendations);
+      
+      if (recommendations.length === 0) {
+        setError('No recommendations found for this movie.');
+      }
     } catch (error) {
-      alert('Failed to get recommendations. Please try again.');
+      setError('Failed to get recommendations. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-4">Movie Search</h1>
+    <div className="container mx-auto p-4 max-w-7xl">
+      <h1 className="text-3xl font-bold mb-6">Movie Search</h1>
       
       <form onSubmit={handleSearch} className="mb-6">
-        <div className="flex gap-2">
-          <input
-            type="text"
+        <div className="plot-input">
+          <label className="block text-sm font-medium mb-2">
+            Describe the movie plot:
+          </label>
+          <textarea
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Describe a movie plot..."
-            className="flex-1 px-4 py-2 border rounded"
+            placeholder="e.g., A heist movie set in space with a twist ending..."
+            className="w-1/2 px-4 py-2 border rounded resize-y min-h-[100px]"
+            rows={4}
           />
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400"
-          >
-            {loading ? 'Searching...' : 'Search'}
-          </button>
         </div>
+
+        <div className="plot-input">
+          <label className="block text-sm font-medium mb-2">
+            Filter by Genre (optional):
+          </label>
+          <GenreDropdown 
+            selectedGenres={selectedGenres} 
+            setSelectedGenres={setSelectedGenres} 
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400"
+        >
+          {loading ? 'Searching...' : 'Search'}
+        </button>
       </form>
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded text-red-700">
+          {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {results.map((movie) => (
           <div key={movie.id} className="border rounded p-4 shadow">
             <h3 className="font-bold text-lg mb-2">{movie.title}</h3>
             <p className="text-sm text-gray-600 mb-2">{movie.release_date}</p>
-            <p className="text-sm mb-3">{movie.overview}</p>
+            <p className="text-sm mb-3 line-clamp-3">{movie.overview}</p>
             <p className="text-xs text-gray-500 mb-2">Genres: {movie.genres}</p>
             <div className="mb-3">
               <p className="text-xs text-gray-500 mb-1">Confidence Score:</p>
@@ -87,3 +136,5 @@ export default function MovieSearch() {
     </div>
   );
 }
+
+export default MovieSearch;
