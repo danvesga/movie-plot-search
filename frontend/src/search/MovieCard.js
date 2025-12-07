@@ -6,6 +6,9 @@ function MovieCard({ movie, onRecommend, lockedMovie , setLockedMovie }) {
   const [isFlipped, setIsFlipped] = useState(false);
   const containerRef = useRef(null);
   const tooltipRef = useRef(null);
+  const overviewRef = useRef(null);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isTextCutOff, setIsTextCutOff] = useState(false);
 
   const toggleMovieLocked = () => {
     if (lockedMovie !== movie.id) {
@@ -36,7 +39,22 @@ function MovieCard({ movie, onRecommend, lockedMovie , setLockedMovie }) {
     const tooltipWidth = tooltip ? tooltip.offsetWidth : 320;
     const margin = 8;
     setIsFlipped(containerRect.right + tooltipWidth + margin > window.innerWidth);
-  }, [isHovered, isLocked, lockedMovie, movie.id]);
+
+    const overviewEl = overviewRef.current;
+    if (overviewEl && movie.overview) {
+      const style = window.getComputedStyle(overviewEl);
+      const paddingLeft = parseFloat(style.paddingLeft) || 0;
+      const paddingRight = parseFloat(style.paddingRight) || 0;
+      const availablePx = tooltipWidth - (paddingLeft + paddingRight) - 24;
+      const avgCharPx = 7.5;
+      const charsPerLine = Math.max(20, Math.floor(availablePx / avgCharPx));
+      const clampLines = 3;
+      const threshold = charsPerLine * clampLines;
+      setIsTextCutOff(movie.overview.length > threshold && !isExpanded);
+    } else {
+      setIsTextCutOff(false);
+    }
+  }, [isHovered, isLocked, lockedMovie, movie.id, isExpanded]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -47,6 +65,18 @@ function MovieCard({ movie, onRecommend, lockedMovie , setLockedMovie }) {
       if (!container) return;
       const tooltipWidth = tooltip ? tooltip.offsetWidth : 320;
       setIsFlipped(container.getBoundingClientRect().right + tooltipWidth + 8 > window.innerWidth);
+      const overviewEl = overviewRef.current;
+      if (overviewEl && movie.overview) {
+        const style = window.getComputedStyle(overviewEl);
+        const paddingLeft = parseFloat(style.paddingLeft) || 0;
+        const paddingRight = parseFloat(style.paddingRight) || 0;
+        const availablePx = tooltipWidth - (paddingLeft + paddingRight) - 24;
+        const avgCharPx = 7.5;
+        const charsPerLine = Math.max(20, Math.floor(availablePx / avgCharPx));
+        const clampLines = 3;
+        const threshold = charsPerLine * clampLines;
+        setIsTextCutOff(movie.overview.length > threshold && !isExpanded);
+      }
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -99,10 +129,40 @@ function MovieCard({ movie, onRecommend, lockedMovie , setLockedMovie }) {
             </div>
           </div>
 
-          <p className={`text-sm text-gray-700 mb-3 ${isLocked ? '' : 'line-clamp-3'}`}>
-            <span className="font-semibold">Overview:</span> {movie.overview || 'No overview available.'}
+          <p
+            ref={overviewRef}
+            className={`text-sm text-gray-700 mb-3 ${isLocked || isExpanded ? '' : 'line-clamp-3'}`}
+          >
+            <span className="font-semibold">Overview:</span>{' '}
+            {movie.overview || 'No overview available.'}
           </p>
-          {!isLocked && <span className="text-blue-500 ml-1"> read more </span>}
+
+          {!isLocked && isTextCutOff && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsExpanded((s) => !s);
+                setTimeout(() => {
+                  const overviewEl = overviewRef.current;
+                  const tooltip = tooltipRef.current;
+                  if (!overviewEl || !tooltip) return;
+                  const tooltipWidth = tooltip.offsetWidth || 320;
+                  const style = window.getComputedStyle(overviewEl);
+                  const paddingLeft = parseFloat(style.paddingLeft) || 0;
+                  const paddingRight = parseFloat(style.paddingRight) || 0;
+                  const availablePx = tooltipWidth - (paddingLeft + paddingRight) - 24;
+                  const avgCharPx = 7.5;
+                  const charsPerLine = Math.max(20, Math.floor(availablePx / avgCharPx));
+                  const clampLines = 3;
+                  const threshold = charsPerLine * clampLines;
+                  setIsTextCutOff(movie.overview.length > threshold && !isExpanded);
+                }, 50);
+              }}
+              className="text-sm text-blue-600 hover:underline ml-1 pointer-events-auto bg-transparent border-0 p-0"
+            >
+              {isExpanded ? 'Show less' : 'Read more'}
+            </button>
+          )}
 
         </div>
       )}
