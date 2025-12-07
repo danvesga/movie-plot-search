@@ -71,7 +71,7 @@ function MovieSearch() {
             rows={4}
           />
         </div>
-        <div className="flex flex-row justify-center items-center gap-16 mt-4">
+        <div className="flex flex-row justify-center items-start gap-16 mt-4">
           <div className="plot-input">
             <ActorInput 
               selectedActors={selectedActors} 

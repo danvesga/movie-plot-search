@@ -67,58 +67,82 @@ def read_root():
 @app.post("/search", response_model=SearchResponse)
 def search_movies(request: SearchRequest):
     """
-    Search for movies based on plot description with optional genre filtering.
+    Search for movies based on plot description with optional genre and actor filtering.
+    Actors are weighted more heavily in the ranking.
     """
     try:
-        # Generate embedding for the search query
         query_embedding = model.encode(request.query).tolist()
         
-        # Build filter for genre if provided
-        filter_dict = None
-        if request.genres and len(request.genres) > 0:
-            # Filter will match if any of the selected genres appear in the movie's genres
-            filter_dict = {
-                "$or": [
-                    {"genres": {"$regex": f".*{genre}.*"}} for genre in request.genres
-                ]
-            }
+        # Get more results if filtering is needed
+        needs_filtering = (request.genres and len(request.genres) > 0) or (request.actors and len(request.actors) > 0)
+        fetch_count = request.top_k * 10 if needs_filtering else request.top_k
         
-        # Query Pinecone
+        # Query Pinecone WITHOUT any filter
         results = index.query(
             vector=query_embedding,
-            top_k=request.top_k * 3 if filter_dict else request.top_k,  # Get more results when filtering
-            include_metadata=True,
-            filter=filter_dict
+            top_k=min(fetch_count, 100),  # Cap at 100
+            include_metadata=True
         )
         
-        # Format results and filter by genre in post-processing (backup check)
+        # Filter and score by genre and actors
         movies = []
         for match in results['matches']:
-            # Double-check genre matching
+            movie_genres = match['metadata'].get('genres', '').lower()
+            movie_credits = match['metadata'].get('credits', '').lower()
+            
+            # Genre filtering (hard filter - must match if specified)
             if request.genres and len(request.genres) > 0:
-                movie_genres = match['metadata'].get('genres', '')
-                # Check if any selected genre is in the movie's genres
-                if not any(genre in movie_genres for genre in request.genres):
+                genre_match = False
+                for genre in request.genres:
+                    if genre.lower() in movie_genres:
+                        genre_match = True
+                        break
+                
+                if not genre_match:
                     continue
             
-            movies.append(Movie(
-                id=match['id'],
-                title=match['metadata'].get('title', ''),
-                overview=match['metadata'].get('overview', ''),
-                genres=match['metadata'].get('genres', ''),
-                release_date=match['metadata'].get('release_date', ''),
-                popularity=match['metadata'].get('popularity', 0),
-                poster_path=match['metadata'].get('poster_path', ''),
-                production_companies=match['metadata'].get('production_companies', ''),
-                credits=match['metadata'].get('credits', ''),
-                score=match['score']
-            ))
+            # Actor matching and boosting
+            actor_boost = 0.0
+            if request.actors and len(request.actors) > 0:
+                actor_matches = 0
+                for actor in request.actors:
+                    if actor.lower() in movie_credits:
+                        actor_matches += 1
+                
+                # Calculate boost: each matching actor adds significant boost
+                # With multiple actors, boost increases exponentially
+                if actor_matches > 0:
+                    actor_boost = 0.15 * actor_matches  # 15% boost per matching actor
+                else:
+                    # If actors specified but none match, skip this movie
+                    continue
             
-            # Stop when we have enough results
-            if len(movies) >= request.top_k:
-                break
+            # Apply actor boost to the similarity score
+            boosted_score = min(match['score'] + actor_boost, 1.0)  # Cap at 1.0
+            
+            movies.append({
+                'movie': Movie(
+                    id=match['id'],
+                    title=match['metadata'].get('title', ''),
+                    overview=match['metadata'].get('overview', ''),
+                    genres=match['metadata'].get('genres', ''),
+                    release_date=match['metadata'].get('release_date', ''),
+                    popularity=match['metadata'].get('popularity', 0),
+                    poster_path=match['metadata'].get('poster_path', ''),
+                    production_companies=match['metadata'].get('production_companies', ''),
+                    credits=match['metadata'].get('credits', ''),
+                    score=boosted_score
+                ),
+                'boosted_score': boosted_score
+            })
         
-        return SearchResponse(results=movies, query=request.query)
+        # Sort by boosted score (highest first)
+        movies.sort(key=lambda x: x['boosted_score'], reverse=True)
+        
+        # Extract just the Movie objects and limit to top_k
+        final_movies = [item['movie'] for item in movies[:request.top_k]]
+        
+        return SearchResponse(results=final_movies, query=request.query)
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

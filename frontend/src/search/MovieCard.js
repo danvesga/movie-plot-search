@@ -52,8 +52,7 @@ function MovieCard({ movie, onRecommend, lockedMovie , setLockedMovie }) {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [isHovered, isLocked, lockedMovie, movie.id]);
-
-
+  
   return (
     <div 
       ref={containerRef}
@@ -76,7 +75,7 @@ function MovieCard({ movie, onRecommend, lockedMovie , setLockedMovie }) {
 
       {/* Hover Details Box */}
       {((isHovered && lockedMovie === null) || (isLocked && lockedMovie === movie.id)) && (
-        <div
+        <div 
           ref={tooltipRef}
           className={`absolute top-0 w-80 bg-white border border-gray-300 rounded-lg shadow-xl p-4 z-50 pointer-events-none ${isFlipped ? 'right-full mr-2' : 'left-full ml-2'}`}
         >
@@ -101,19 +100,11 @@ function MovieCard({ movie, onRecommend, lockedMovie , setLockedMovie }) {
             </div>
           </div>
 
-          <p className="text-sm text-gray-700 mb-3 line-clamp-4">
+          <p className={`text-sm text-gray-700 mb-3 ${isLocked ? '' : 'line-clamp-3'}`}>
             <span className="font-semibold">Overview:</span> {movie.overview || 'No overview available.'}
           </p>
+          {!isLocked && <span className="text-blue-500 ml-1"> read more </span>}
 
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onRecommend(movie.id);
-            }}
-            className="w-full px-4 py-2 bg-green-500 text-white rounded text-sm hover:bg-green-600 pointer-events-auto"
-          >
-            Similar Movies
-          </button>
         </div>
       )}
     </div>
