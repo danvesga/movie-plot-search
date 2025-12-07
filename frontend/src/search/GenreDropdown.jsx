@@ -13,8 +13,6 @@ function GenreDropdown({ selectedGenres, setSelectedGenres }) {
     if (genre && !selectedGenres.includes(genre)) {
       setSelectedGenres([...selectedGenres, genre]);
     }
-    // Reset dropdown to placeholder
-    e.target.value = '';
   };
 
   const removeGenre = (genreToRemove) => {
@@ -26,10 +24,14 @@ function GenreDropdown({ selectedGenres, setSelectedGenres }) {
 
   return (
     <div className="mb-4">
+      <label className="block text-sm font-medium mb-2">
+        Add Genres:
+      </label>
+      
       <select
         onChange={handleGenreSelect}
+        value=""
         className="px-4 py-2 border rounded bg-white cursor-pointer"
-        defaultValue=""
       >
         <option value="" disabled>
           Select a genre...
