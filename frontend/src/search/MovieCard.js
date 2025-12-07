@@ -26,7 +26,6 @@ function MovieCard({ movie, onRecommend, lockedMovie , setLockedMovie }) {
   const posterUrl = getTMDBImageUrl(movie.poster_path);
   const placeholderUrl = 'https://via.placeholder.com/342x513/cccccc/666666?text=No+Poster';
 
-  // Calculate whether the tooltip should flip to the left to avoid overflowing the viewport.
   useLayoutEffect(() => {
     const visible = (isHovered && lockedMovie === null) || (isLocked && lockedMovie === movie.id);
     if (!visible) return;
@@ -34,7 +33,7 @@ function MovieCard({ movie, onRecommend, lockedMovie , setLockedMovie }) {
     const tooltip = tooltipRef.current;
     if (!container) return;
     const containerRect = container.getBoundingClientRect();
-    const tooltipWidth = tooltip ? tooltip.offsetWidth : 320; // fallback width for w-80 (20rem ~ 320px)
+    const tooltipWidth = tooltip ? tooltip.offsetWidth : 320;
     const margin = 8;
     setIsFlipped(containerRect.right + tooltipWidth + margin > window.innerWidth);
   }, [isHovered, isLocked, lockedMovie, movie.id]);

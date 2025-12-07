@@ -37,6 +37,13 @@
   }
 }
 
+.header {
+  background-image: linear-gradient(to bottom, lightblue, white);
+  padding: 20px;
+  width: 100%;
+  height: fit-content;
+}
+
 .plot-input {
   display: flex;;
   flex-direction: column;

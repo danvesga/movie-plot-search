@@ -19,7 +19,6 @@ function GenreDropdown({ selectedGenres, setSelectedGenres }) {
     setSelectedGenres(selectedGenres.filter(g => g !== genreToRemove));
   };
 
-  // Filter out already selected genres from dropdown
   const availableGenres = GENRES.filter(g => !selectedGenres.includes(g));
 
   return (

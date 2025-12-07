@@ -5,21 +5,15 @@ from tqdm import tqdm
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
-def create_embeddings(input_path='data/movies2.csv', index_name='movie-plots'):
-    """
-    Generate embeddings for movie plots and upload to Pinecone.
-    """
-    # Load the preprocessed dataset
+def create_embeddings(input_path='data/movies3.csv', index_name='movie-plots'):
+    # Load preprocessed dataset
     print("Loading preprocessed dataset...")
     df = pd.read_csv(input_path)
     print(f"Loaded {len(df)} movies")
-    
-    # Load embedding model
     print("\nLoading embedding model (all-MiniLM-L6-v2)...")
-    model = SentenceTransformer('all-MiniLM-L6-v2')  # 384 dimensions, fast and efficient
+    model = SentenceTransformer('all-MiniLM-L6-v2') 
     print("Model loaded successfully")
     
     # Generate embeddings for the 'overview' column
@@ -27,7 +21,7 @@ def create_embeddings(input_path='data/movies2.csv', index_name='movie-plots'):
     embeddings = model.encode(
         df['overview'].tolist(), 
         show_progress_bar=True,
-        batch_size=32  # Adjust based on your system's memory
+        batch_size=32
     )
     print(f"Generated {len(embeddings)} embeddings")
     
@@ -39,8 +33,7 @@ def create_embeddings(input_path='data/movies2.csv', index_name='movie-plots'):
     
     pc = Pinecone(api_key=api_key)
     
-    # Create index if it doesn't exist
-    embedding_dimension = embeddings.shape[1]  # Should be 384 for all-MiniLM-L6-v2
+    embedding_dimension = embeddings.shape[1]
     
     if index_name not in pc.list_indexes().names():
         print(f"Creating new index '{index_name}' with dimension {embedding_dimension}...")
@@ -50,7 +43,7 @@ def create_embeddings(input_path='data/movies2.csv', index_name='movie-plots'):
             metric='cosine',
             spec=ServerlessSpec(
                 cloud='aws',
-                region='us-east-1'  # Change to your preferred region
+                region='us-east-1'
             )
         )
         print("Index created successfully")
@@ -69,16 +62,14 @@ def create_embeddings(input_path='data/movies2.csv', index_name='movie-plots'):
         batch_df = df.iloc[i:i+batch_size]
         batch_embeddings = embeddings[i:i+batch_size]
         
-        # Prepare vectors with metadata
         vectors = []
         for idx, (row_idx, row) in enumerate(batch_df.iterrows()):
-            vector_id = str(row_idx)  # Use pandas index as unique ID
+            vector_id = str(row_idx) 
             embedding = batch_embeddings[idx].tolist()
             
-            # Metadata to store with each vector
             metadata = {
                 'title': str(row.get('title', '')),
-                'overview': str(row.get('overview', ''))[:1000],  # Limit overview length
+                'overview': str(row.get('overview', ''))[:1000],
                 'genres': str(row.get('genres', '')),
                 'release_date': str(row.get('release_date', '')),
                 'popularity': float(row.get('popularity', 0)),
@@ -93,10 +84,8 @@ def create_embeddings(input_path='data/movies2.csv', index_name='movie-plots'):
                 'metadata': metadata
             })
         
-        # Upsert batch to Pinecone
         index.upsert(vectors=vectors)
     
-    # Verify upload
     stats = index.describe_index_stats()
     print(f"\nUpload complete!")
     print(f"Total vectors in index: {stats['total_vector_count']}")

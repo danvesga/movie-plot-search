@@ -55,9 +55,10 @@ function MovieSearch() {
   };
 
   return (
-    <div className="container mx-auto p-4 max-w-7xl">
-      <h1 className="text-3xl font-bold mb-6">Movie Search</h1>
-      
+    <div className="container mx-auto pb-4 max-w-7xl">
+      <div className="header">
+        <h1 className="text-3xl font-bold mb-6">Movie Search</h1>
+      </div>
       <form onSubmit={handleSearch} className="mb-6">
         <div className="plot-input">
           <label className="block text-sm font-medium mb-2">

@@ -1,4 +1,3 @@
-// api.js - Create this file to handle API calls
 const API_BASE_URL = 'http://localhost:8000';
 
 export const searchMovies = async (query, topK = 10, genres = [], actors = []) => {
