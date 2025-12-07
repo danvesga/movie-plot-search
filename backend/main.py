@@ -35,6 +35,7 @@ class SearchRequest(BaseModel):
     query: str
     top_k: Optional[int] = 10
     genres: Optional[List[str]] = None
+    actors: Optional[List[str]] = None
 
 class Movie(BaseModel):
     id: str
@@ -56,6 +57,7 @@ class RecommendRequest(BaseModel):
     movie_id: str
     top_k: Optional[int] = 10
     genres: Optional[List[str]] = None
+    actors: Optional[List[str]] = None
 
 # Endpoints
 @app.get("/")
@@ -68,33 +70,35 @@ def search_movies(request: SearchRequest):
     Search for movies based on plot description with optional genre filtering.
     """
     try:
+        # Generate embedding for the search query
         query_embedding = model.encode(request.query).tolist()
         
-        # Get more results if filtering is needed (no Pinecone filter, just fetch more)
-        fetch_count = request.top_k * 5 if request.genres else request.top_k
+        # Build filter for genre if provided
+        filter_dict = None
+        if request.genres and len(request.genres) > 0:
+            # Filter will match if any of the selected genres appear in the movie's genres
+            filter_dict = {
+                "$or": [
+                    {"genres": {"$regex": f".*{genre}.*"}} for genre in request.genres
+                ]
+            }
         
+        # Query Pinecone
         results = index.query(
             vector=query_embedding,
-            top_k=min(fetch_count, 100),
-            include_metadata=True
+            top_k=request.top_k * 3 if filter_dict else request.top_k,  # Get more results when filtering
+            include_metadata=True,
+            filter=filter_dict
         )
         
-        # Filter by genre in post-processing
+        # Format results and filter by genre in post-processing (backup check)
         movies = []
         for match in results['matches']:
-            movie_genres = match['metadata'].get('genres', '').lower()
-            
-            # If genres filter is applied, check if movie matches
+            # Double-check genre matching
             if request.genres and len(request.genres) > 0:
-                # Check if any of the selected genres appear in the movie's genres
-                genre_match = False
-                for genre in request.genres:
-                    # Case-insensitive matching
-                    if genre.lower() in movie_genres:
-                        genre_match = True
-                        break
-                
-                if not genre_match:
+                movie_genres = match['metadata'].get('genres', '')
+                # Check if any selected genre is in the movie's genres
+                if not any(genre in movie_genres for genre in request.genres):
                     continue
             
             movies.append(Movie(
@@ -122,7 +126,7 @@ def search_movies(request: SearchRequest):
 @app.post("/recommend", response_model=SearchResponse)
 def recommend_movies(request: RecommendRequest):
     """
-    Get movie recommendations based on a specific movie with optional genre filtering.
+    Get movie recommendations based on a specific movie with optional genre and actor filtering.
     """
     try:
         # Fetch the movie's vector from Pinecone
@@ -131,9 +135,12 @@ def recommend_movies(request: RecommendRequest):
         if not movie_data['vectors'] or request.movie_id not in movie_data['vectors']:
             raise HTTPException(status_code=404, detail="Movie not found")
         
+        # Get the movie's embedding
         movie_vector = movie_data['vectors'][request.movie_id]['values']
         
-        fetch_count = (request.top_k + 1) * 5 if request.genres else request.top_k + 1
+        # Get more results if filtering
+        needs_filtering = (request.genres and len(request.genres) > 0) or (request.actors and len(request.actors) > 0)
+        fetch_count = (request.top_k + 1) * 5 if needs_filtering else request.top_k + 1
         
         # Query for similar movies
         results = index.query(
@@ -142,14 +149,17 @@ def recommend_movies(request: RecommendRequest):
             include_metadata=True
         )
         
-        # Format results and apply genre filter
+        # Format results (exclude the original movie and apply filters)
         movies = []
         for match in results['matches']:
+            # Skip the original movie
             if match['id'] == request.movie_id:
                 continue
             
             movie_genres = match['metadata'].get('genres', '').lower()
+            movie_credits = match['metadata'].get('credits', '').lower()
             
+            # Genre filtering
             if request.genres and len(request.genres) > 0:
                 genre_match = False
                 for genre in request.genres:
@@ -158,6 +168,17 @@ def recommend_movies(request: RecommendRequest):
                         break
                 
                 if not genre_match:
+                    continue
+            
+            # Actor filtering
+            if request.actors and len(request.actors) > 0:
+                actor_match = False
+                for actor in request.actors:
+                    if actor.lower() in movie_credits:
+                        actor_match = True
+                        break
+                
+                if not actor_match:
                     continue
             
             movies.append(Movie(

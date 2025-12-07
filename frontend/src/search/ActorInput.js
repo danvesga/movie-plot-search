@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { searchMovies, getRecommendations } from './api';
 import GenreDropdown from './GenreDropdown';
+import ActorInput from './ActorInput';
 import MovieCard from './MovieCard';
 import '../App.css'
 
@@ -9,8 +10,8 @@ function MovieSearch() {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedGenres, setSelectedGenres] = useState([]);
+  const [selectedActors, setSelectedActors] = useState([]);
   const [error, setError] = useState('');
-  const [lockedMovieId, setLockedMovieId] = useState(null);
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -19,7 +20,7 @@ function MovieSearch() {
     setLoading(true);
     setError('');
     try {
-      const movies = await searchMovies(query, 10, selectedGenres);
+      const movies = await searchMovies(query, 10, selectedGenres, selectedActors);
       setResults(movies);
       
       if (movies.length === 0) {
@@ -37,7 +38,7 @@ function MovieSearch() {
     setLoading(true);
     setError('');
     try {
-      const recommendations = await getRecommendations(movieId, 10, selectedGenres);
+      const recommendations = await getRecommendations(movieId, 10, selectedGenres, selectedActors);
       setResults(recommendations);
       
       if (recommendations.length === 0) {
@@ -50,8 +51,6 @@ function MovieSearch() {
       setLoading(false);
     }
   };
-
-  console.log('locked movies: ', lockedMovieId)
 
   return (
     <div className="container mx-auto p-4 max-w-7xl">
@@ -78,6 +77,13 @@ function MovieSearch() {
           />
         </div>
 
+        <div className="plot-input">
+          <ActorInput 
+            selectedActors={selectedActors} 
+            setSelectedActors={setSelectedActors} 
+          />
+        </div>
+
         <button
           type="submit"
           disabled={loading}
@@ -93,15 +99,12 @@ function MovieSearch() {
         </div>
       )}
 
-      {/* 5 columns on large screens, 3 on medium, 1 on small */}
-      <div className="movies-grid">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {results.map((movie) => (
           <MovieCard 
             key={movie.id} 
             movie={movie} 
             onRecommend={handleRecommend}
-            lockedMovie={lockedMovieId}
-            setLockedMovie={setLockedMovieId}
           />
         ))}
       </div>

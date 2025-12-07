@@ -1,6 +1,7 @@
+// api.js - Create this file to handle API calls
 const API_BASE_URL = 'http://localhost:8000';
 
-export const searchMovies = async (query, topK = 10, genres = []) => {
+export const searchMovies = async (query, topK = 10, genres = [], actors = []) => {
   try {
     const response = await fetch(`${API_BASE_URL}/search`, {
       method: 'POST',
@@ -10,7 +11,8 @@ export const searchMovies = async (query, topK = 10, genres = []) => {
       body: JSON.stringify({
         query: query,
         top_k: topK,
-        genres: genres
+        genres: genres,
+        actors: actors
       })
     });
 
@@ -26,7 +28,7 @@ export const searchMovies = async (query, topK = 10, genres = []) => {
   }
 };
 
-export const getRecommendations = async (movieId, topK = 10, genres = []) => {
+export const getRecommendations = async (movieId, topK = 10, genres = [], actors = []) => {
   try {
     const response = await fetch(`${API_BASE_URL}/recommend`, {
       method: 'POST',
@@ -36,7 +38,8 @@ export const getRecommendations = async (movieId, topK = 10, genres = []) => {
       body: JSON.stringify({
         movie_id: movieId,
         top_k: topK,
-        genres: genres
+        genres: genres,
+        actors: actors
       })
     });
 
